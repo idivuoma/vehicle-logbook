@@ -375,7 +375,7 @@
             if (enteredCode === PASSCODE) {
                 document.getElementById('loginScreen').style.display = 'none';
                 document.getElementById('mainContent').style.display = 'block';
-                initializeApp();
+                initLogbookApp(); // FIXED: renamed from initializeApp
             } else {
                 document.getElementById('loginError').style.display = 'block';
                 document.getElementById('passcodeInput').value = '';
@@ -389,7 +389,7 @@
             document.getElementById('loginError').style.display = 'none';
         }
 
-        function initializeApp() {
+        function initLogbookApp() { // FIXED: renamed from initializeApp
             // Show loading message
             document.getElementById('loadingMessage').style.display = 'block';
             document.getElementById('errorMessage').style.display = 'none';
