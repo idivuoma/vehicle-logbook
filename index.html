@@ -95,6 +95,17 @@
             background: #e67e22;
         }
 
+        .btn-warning {
+            background: #f39c12;
+            color: white;
+            text-decoration: none;
+            display: inline-block;
+        }
+
+        .btn-warning:hover {
+            background: #e67e22;
+        }
+
         .main-content {
             padding: 20px;
             display: none;
@@ -197,21 +208,37 @@
         .error {
             background: #f8d7da;
             color: #721c24;
-            padding: 10px;
+            padding: 15px;
             border-radius: 5px;
             margin: 10px 0;
             font-size: 14px;
         }
 
-        .debug-info {
+        .warning {
             background: #fff3cd;
             color: #856404;
-            padding: 10px;
+            padding: 15px;
             border-radius: 5px;
             margin: 10px 0;
-            font-size: 12px;
-            font-family: monospace;
-            white-space: pre-wrap;
+            border-left: 4px solid #ffc107;
+        }
+
+        .info {
+            background: #d1ecf1;
+            color: #0c5460;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 10px 0;
+            border-left: 4px solid #17a2b8;
+        }
+
+        .success {
+            background: #d4edda;
+            color: #155724;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 10px 0;
+            border-left: 4px solid #28a745;
         }
 
         .editing-notice {
@@ -221,6 +248,25 @@
             border-radius: 5px;
             margin: 10px 0;
             display: none;
+        }
+
+        .data-safety-notice {
+            background: #e7f3ff;
+            color: #004085;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 10px 0;
+            border-left: 4px solid #007bff;
+            font-size: 13px;
+        }
+
+        .unsorted-notice {
+            background: #fff3cd;
+            color: #856404;
+            padding: 10px;
+            border-radius: 5px;
+            margin: 10px 0;
+            font-size: 13px;
         }
 
         @media (max-width: 600px) {
@@ -281,13 +327,26 @@
             </div>
 
             <div id="errorMessage" class="error" style="display: none;">
-                <strong>Feil ved tilkobling til database:</strong>
+                <strong>❌ Feil ved tilkobling til database</strong>
                 <div id="errorDetails"></div>
             </div>
 
-            <div id="debugInfo" class="debug-info" style="display: none;">
-                <strong>Debug-informasjon:</strong>
-                <div id="debugDetails"></div>
+            <div id="indexWarning" class="warning" style="display: none;">
+                <strong>⚠️ Database-indeks mangler</strong>
+                <p>For å sortere turene riktig (eldste først) trenger databasen en indeks. <strong>Ingen data går tapt!</strong></p>
+                <p>Klikk knappen under for å opprette indeksen i Firebase Console:</p>
+                <a id="createIndexLink" href="#" target="_blank" class="btn btn-warning">
+                    🔧 Opprett indeks i Firebase Console
+                </a>
+                <p style="margin-top: 10px; font-size: 12px;">
+                    <em>Etter at indeksen er opprettet (tar 1-2 minutter), last inn siden på nytt (F5).</em>
+                </p>
+            </div>
+
+            <div id="dataSafetyNotice" class="data-safety-notice" style="display: none;">
+                <strong>🔒 Datasikkerhet</strong>
+                <p>Alle turer lagres sikkert i Google Firestore. Data går aldri tapt ved opprettelse av indekser eller andre database-operasjoner. 
+                For ekstra sikkerhet, eksporter til PDF regelmessig.</p>
             </div>
 
             <div id="appContent" style="display: none;">
@@ -365,7 +424,11 @@
                     <button type="submit" class="btn btn-success" id="submitBtn">Legg til tur</button>
                 </form>
 
-                <h3>Registrerte turer (eldste først)</h3>
+                <div id="unsortedNotice" class="unsorted-notice" style="display: none;">
+                    <strong>ℹ️ Turene vises uten sortering</strong> inntil database-indeksen er opprettet.
+                </div>
+
+                <h3 id="tripsHeader">Registrerte turer</h3>
                 <table class="records-table">
                     <thead>
                         <tr>
@@ -404,12 +467,12 @@
             query
         } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js';
 
-        // Firebase-konfigurasjon (OPPDATERT storageBucket)
+        // Firebase-konfigurasjon
         const firebaseConfig = {
             apiKey: "AIzaSyBY-b720I4Kw_J9RilSXgml66BN05vK3IA",
             authDomain: "vehicle-logbook-ff7c9.firebaseapp.com",
             projectId: "vehicle-logbook-ff7c9",
-            storageBucket: "vehicle-logbook-ff7c9.appspot.com",  // ENDRET HER
+            storageBucket: "vehicle-logbook-ff7c9.appspot.com",
             messagingSenderId: "693791735958",
             appId: "1:693791735958:web:0b3f780ef71702e8d882b7"
         };
@@ -431,6 +494,7 @@
         const PASSCODE = '9520';
         let trips = [];
         let editingId = null;
+        let isSorted = false; // Track if data is sorted
 
         // Make functions globally available
         window.login = login;
@@ -440,17 +504,19 @@
         window.cancelEdit = cancelEdit;
         window.exportToPDF = exportToPDF;
 
-        function showError(message, details = null) {
+        function showError(message) {
             document.getElementById('loadingMessage').style.display = 'none';
             document.getElementById('errorMessage').style.display = 'block';
             document.getElementById('errorDetails').textContent = message;
-            
-            if (details) {
-                document.getElementById('debugInfo').style.display = 'block';
-                document.getElementById('debugDetails').textContent = JSON.stringify(details, null, 2);
-            }
-            
-            console.error('🔥 Feil:', message, details);
+            console.error('🔥 Feil:', message);
+        }
+
+        function showIndexWarning(indexUrl) {
+            document.getElementById('loadingMessage').style.display = 'none';
+            document.getElementById('indexWarning').style.display = 'block';
+            document.getElementById('dataSafetyNotice').style.display = 'block';
+            document.getElementById('createIndexLink').href = indexUrl;
+            console.log('⚠️ Indeks mangler. URL:', indexUrl);
         }
 
         function login() {
@@ -471,7 +537,8 @@
             document.getElementById('passcodeInput').value = '';
             document.getElementById('loginError').style.display = 'none';
             document.getElementById('errorMessage').style.display = 'none';
-            document.getElementById('debugInfo').style.display = 'none';
+            document.getElementById('indexWarning').style.display = 'none';
+            document.getElementById('dataSafetyNotice').style.display = 'none';
             cancelEdit();
         }
 
@@ -482,42 +549,26 @@
             // Show loading message
             document.getElementById('loadingMessage').style.display = 'block';
             document.getElementById('errorMessage').style.display = 'none';
-            document.getElementById('debugInfo').style.display = 'none';
+            document.getElementById('indexWarning').style.display = 'none';
+            document.getElementById('dataSafetyNotice').style.display = 'none';
             document.getElementById('appContent').style.display = 'none';
 
             console.log('🔄 Starter Firestore-tilkobling...');
 
             try {
-                // FØRST: Test enkel spørring uten sortering
-                console.log('📡 Tester enkel spørring først...');
-                const simpleQuery = collection(db, 'turer');
-                
-                onSnapshot(simpleQuery, (snapshot) => {
-                    console.log('✅ Enkel spørring OK, antall dokumenter:', snapshot.size);
-                    
-                    // Hvis enkel spørring fungerer, prøv med sortering
-                    setupSortedQuery();
-                    
-                }, (error) => {
-                    console.error('❌ Enkel spørring feilet:', error);
-                    showError('Enkel database-spørring feilet', {
-                        code: error.code,
-                        message: error.message,
-                        details: error.details || 'Ingen detaljer'
-                    });
-                });
+                // FØRST: Prøv sortert spørring
+                console.log('📡 Tester sortert spørring...');
+                setupSortedQuery();
 
             } catch (error) {
                 console.error('❌ Feil ved oppstart:', error);
-                showError('Feil ved oppstart av app', error);
+                showError('Feil ved oppstart av app: ' + error.message);
             }
         }
 
         function setupSortedQuery() {
             try {
-                console.log('🔄 Setter opp sortert spørring...');
-                
-                // Prøv med sortert spørring
+                // Prøv med sortert spørring først
                 const q = query(
                     tripsCollection, 
                     orderBy('startDate', 'asc'),
@@ -532,27 +583,29 @@
                         trips.push({ id: doc.id, ...doc.data() });
                     });
                     
+                    isSorted = true;
                     loadTrips();
                     updateStats();
                     
                     // Hide loading, show content
                     document.getElementById('loadingMessage').style.display = 'none';
                     document.getElementById('appContent').style.display = 'block';
+                    document.getElementById('tripsHeader').textContent = 'Registrerte turer (eldste først)';
                     
                 }, (error) => {
                     console.error('❌ Sortert spørring feilet:', error);
                     
                     if (error.code === 'failed-precondition') {
-                        showError('Mangler database-indeks. Klikk lenken i konsollen for å opprette indeks.', {
-                            code: error.code,
-                            message: error.message,
-                            løsning: 'Gå til Firebase Console → Firestore → Indekser og opprett indeks for startDate + startKm'
-                        });
+                        // Extract index creation URL from error message
+                        const match = error.message.match(/https:\/\/console\.firebase\.google\.com[^\s]+/);
+                        const indexUrl = match ? match[0] : 'https://console.firebase.google.com/project/vehicle-logbook-ff7c9/firestore/indexes';
+                        
+                        showIndexWarning(indexUrl);
+                        
+                        // Fall back to unsorted query
+                        setupUnsortedQuery();
                     } else {
-                        showError('Sortert database-spørring feilet', {
-                            code: error.code,
-                            message: error.message
-                        });
+                        showError('Database-spørring feilet: ' + error.message);
                     }
                 });
 
@@ -561,7 +614,50 @@
 
             } catch (error) {
                 console.error('❌ Feil ved sortert spørring:', error);
-                showError('Feil ved sortert spørring', error);
+                showError('Feil ved sortert spørring: ' + error.message);
+            }
+        }
+
+        function setupUnsortedQuery() {
+            try {
+                console.log('📡 Setter opp usortert spørring som fallback...');
+                
+                // Simple query without sorting
+                const simpleQuery = collection(db, 'turer');
+                
+                onSnapshot(simpleQuery, (snapshot) => {
+                    console.log('✅ Usortert spørring OK, antall dokumenter:', snapshot.size);
+                    
+                    trips = [];
+                    snapshot.forEach((doc) => {
+                        trips.push({ id: doc.id, ...doc.data() });
+                    });
+                    
+                    // Sort manually in JavaScript (not as efficient, but works)
+                    trips.sort((a, b) => {
+                        if (a.startDate === b.startDate) {
+                            return a.startKm - b.startKm;
+                        }
+                        return a.startDate.localeCompare(b.startDate);
+                    });
+                    
+                    isSorted = false;
+                    loadTrips();
+                    updateStats();
+                    
+                    // Show content with warning
+                    document.getElementById('appContent').style.display = 'block';
+                    document.getElementById('unsortedNotice').style.display = 'block';
+                    document.getElementById('tripsHeader').textContent = 'Registrerte turer (sortert i nettleseren)';
+                    
+                }, (error) => {
+                    console.error('❌ Usortert spørring feilet også:', error);
+                    showError('Alle database-spørringer feilet: ' + error.message);
+                });
+
+            } catch (error) {
+                console.error('❌ Feil ved usortert spørring:', error);
+                showError('Feil ved usortert spørring: ' + error.message);
             }
         }
 
@@ -655,7 +751,6 @@
             const tbody = document.getElementById('recordsTableBody');
             tbody.innerHTML = '';
 
-            // Turene er allerede sortert fra Firestore-spørringen
             trips.forEach(trip => {
                 const distance = trip.stopKm - trip.startKm;
                 const row = tbody.insertRow();
@@ -708,12 +803,12 @@
                 return;
             }
 
-            // Sort year trips chronologically (eldste først) - samme som hovedlisten
+            // Sort year trips chronologically (eldste først)
             yearTrips.sort((a, b) => {
                 if (a.startDate === b.startDate) {
-                    return a.startKm - b.startKm; // Hvis samme dato, sorter etter km
+                    return a.startKm - b.startKm;
                 }
-                return a.startDate.localeCompare(b.startDate); // Eldste først
+                return a.startDate.localeCompare(b.startDate);
             });
 
             let htmlContent = `
@@ -784,6 +879,9 @@
                         <p><strong>Antall turer:</strong> ${yearTrips.length}</p>
                         <p><strong>Total kjørt:</strong> ${totalDistance} km</p>
                         <p><strong>Generert:</strong> ${new Date().toLocaleDateString('no-NO')} ${new Date().toLocaleTimeString('no-NO')}</p>
+                        <p style="font-size: 10px; color: #666; margin-top: 20px;">
+                            <em>Data sortert ${isSorted ? 'av database' : 'i nettleser'} • Sikret lagret i Google Firestore</em>
+                        </p>
                     </div>
                 </body>
                 </html>
