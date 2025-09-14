@@ -200,6 +200,18 @@
             padding: 10px;
             border-radius: 5px;
             margin: 10px 0;
+            font-size: 14px;
+        }
+
+        .debug-info {
+            background: #fff3cd;
+            color: #856404;
+            padding: 10px;
+            border-radius: 5px;
+            margin: 10px 0;
+            font-size: 12px;
+            font-family: monospace;
+            white-space: pre-wrap;
         }
 
         .editing-notice {
@@ -269,7 +281,13 @@
             </div>
 
             <div id="errorMessage" class="error" style="display: none;">
-                Feil ved tilkobling til database. Sjekk internettforbindelsen.
+                <strong>Feil ved tilkobling til database:</strong>
+                <div id="errorDetails"></div>
+            </div>
+
+            <div id="debugInfo" class="debug-info" style="display: none;">
+                <strong>Debug-informasjon:</strong>
+                <div id="debugDetails"></div>
             </div>
 
             <div id="appContent" style="display: none;">
@@ -386,20 +404,28 @@
             query
         } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js';
 
-        // Firebase-konfigurasjon
+        // Firebase-konfigurasjon (OPPDATERT storageBucket)
         const firebaseConfig = {
             apiKey: "AIzaSyBY-b720I4Kw_J9RilSXgml66BN05vK3IA",
             authDomain: "vehicle-logbook-ff7c9.firebaseapp.com",
             projectId: "vehicle-logbook-ff7c9",
-            storageBucket: "vehicle-logbook-ff7c9.firebasestorage.app",
+            storageBucket: "vehicle-logbook-ff7c9.appspot.com",  // ENDRET HER
             messagingSenderId: "693791735958",
             appId: "1:693791735958:web:0b3f780ef71702e8d882b7"
         };
 
         // Initialize Firebase
-        const app = initializeApp(firebaseConfig);
-        const db = getFirestore(app);
-        const tripsCollection = collection(db, 'turer');
+        let app, db, tripsCollection;
+        
+        try {
+            app = initializeApp(firebaseConfig);
+            db = getFirestore(app);
+            tripsCollection = collection(db, 'turer');
+            console.log('✅ Firebase initialisert OK');
+        } catch (error) {
+            console.error('❌ Firebase init feil:', error);
+            showError('Firebase-initialisering feilet: ' + error.message);
+        }
 
         // Global variables
         const PASSCODE = '9520';
@@ -413,6 +439,19 @@
         window.editTrip = editTrip;
         window.cancelEdit = cancelEdit;
         window.exportToPDF = exportToPDF;
+
+        function showError(message, details = null) {
+            document.getElementById('loadingMessage').style.display = 'none';
+            document.getElementById('errorMessage').style.display = 'block';
+            document.getElementById('errorDetails').textContent = message;
+            
+            if (details) {
+                document.getElementById('debugInfo').style.display = 'block';
+                document.getElementById('debugDetails').textContent = JSON.stringify(details, null, 2);
+            }
+            
+            console.error('🔥 Feil:', message, details);
+        }
 
         function login() {
             const enteredCode = document.getElementById('passcodeInput').value;
@@ -431,6 +470,8 @@
             document.getElementById('mainContent').style.display = 'none';
             document.getElementById('passcodeInput').value = '';
             document.getElementById('loginError').style.display = 'none';
+            document.getElementById('errorMessage').style.display = 'none';
+            document.getElementById('debugInfo').style.display = 'none';
             cancelEdit();
         }
 
@@ -441,17 +482,51 @@
             // Show loading message
             document.getElementById('loadingMessage').style.display = 'block';
             document.getElementById('errorMessage').style.display = 'none';
+            document.getElementById('debugInfo').style.display = 'none';
             document.getElementById('appContent').style.display = 'none';
 
+            console.log('🔄 Starter Firestore-tilkobling...');
+
             try {
-                // Set up real-time listener for trips - SORTERT ELDSTE FØRST
+                // FØRST: Test enkel spørring uten sortering
+                console.log('📡 Tester enkel spørring først...');
+                const simpleQuery = collection(db, 'turer');
+                
+                onSnapshot(simpleQuery, (snapshot) => {
+                    console.log('✅ Enkel spørring OK, antall dokumenter:', snapshot.size);
+                    
+                    // Hvis enkel spørring fungerer, prøv med sortering
+                    setupSortedQuery();
+                    
+                }, (error) => {
+                    console.error('❌ Enkel spørring feilet:', error);
+                    showError('Enkel database-spørring feilet', {
+                        code: error.code,
+                        message: error.message,
+                        details: error.details || 'Ingen detaljer'
+                    });
+                });
+
+            } catch (error) {
+                console.error('❌ Feil ved oppstart:', error);
+                showError('Feil ved oppstart av app', error);
+            }
+        }
+
+        function setupSortedQuery() {
+            try {
+                console.log('🔄 Setter opp sortert spørring...');
+                
+                // Prøv med sortert spørring
                 const q = query(
                     tripsCollection, 
-                    orderBy('startDate', 'asc'),    // Eldste først
-                    orderBy('startKm', 'asc')       // Hvis samme dato, sorter etter km
+                    orderBy('startDate', 'asc'),
+                    orderBy('startKm', 'asc')
                 );
                 
                 onSnapshot(q, (snapshot) => {
+                    console.log('✅ Sortert spørring OK, antall dokumenter:', snapshot.size);
+                    
                     trips = [];
                     snapshot.forEach((doc) => {
                         trips.push({ id: doc.id, ...doc.data() });
@@ -463,19 +538,30 @@
                     // Hide loading, show content
                     document.getElementById('loadingMessage').style.display = 'none';
                     document.getElementById('appContent').style.display = 'block';
+                    
                 }, (error) => {
-                    console.error('Error listening to trips:', error);
-                    document.getElementById('loadingMessage').style.display = 'none';
-                    document.getElementById('errorMessage').style.display = 'block';
+                    console.error('❌ Sortert spørring feilet:', error);
+                    
+                    if (error.code === 'failed-precondition') {
+                        showError('Mangler database-indeks. Klikk lenken i konsollen for å opprette indeks.', {
+                            code: error.code,
+                            message: error.message,
+                            løsning: 'Gå til Firebase Console → Firestore → Indekser og opprett indeks for startDate + startKm'
+                        });
+                    } else {
+                        showError('Sortert database-spørring feilet', {
+                            code: error.code,
+                            message: error.message
+                        });
+                    }
                 });
 
                 // Set up form submission
                 document.getElementById('tripForm').addEventListener('submit', addTrip);
 
             } catch (error) {
-                console.error('Error initializing app:', error);
-                document.getElementById('loadingMessage').style.display = 'none';
-                document.getElementById('errorMessage').style.display = 'block';
+                console.error('❌ Feil ved sortert spørring:', error);
+                showError('Feil ved sortert spørring', error);
             }
         }
 
@@ -517,7 +603,7 @@
                 
             } catch (error) {
                 console.error('Error saving trip:', error);
-                alert('Feil ved lagring. Prøv igjen.');
+                alert('Feil ved lagring: ' + error.message);
             }
         }
 
@@ -560,7 +646,7 @@
                     alert('Tur slettet!');
                 } catch (error) {
                     console.error('Error deleting trip:', error);
-                    alert('Feil ved sletting. Prøv igjen.');
+                    alert('Feil ved sletting: ' + error.message);
                 }
             }
         }
