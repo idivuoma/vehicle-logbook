@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="no">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Vehicle Logbook - Forest People</title>
+    <title>Kjørebok - Forest People</title>
     <style>
         * {
             margin: 0;
@@ -87,6 +87,14 @@
             background: #c0392b;
         }
 
+        .btn-edit {
+            background: #f39c12;
+        }
+
+        .btn-edit:hover {
+            background: #e67e22;
+        }
+
         .main-content {
             padding: 20px;
             display: none;
@@ -145,14 +153,22 @@
             background: #f8f9fa;
         }
 
-        .delete-btn {
-            background: #e74c3c;
+        .action-btn {
             color: white;
             border: none;
             padding: 4px 8px;
             border-radius: 3px;
             cursor: pointer;
             font-size: 12px;
+            margin: 2px;
+        }
+
+        .delete-btn {
+            background: #e74c3c;
+        }
+
+        .edit-btn {
+            background: #f39c12;
         }
 
         .stats {
@@ -160,6 +176,16 @@
             padding: 15px;
             border-radius: 5px;
             margin: 20px 0;
+        }
+
+        .year-selector {
+            margin: 10px 0;
+        }
+
+        .year-selector input {
+            width: 120px;
+            display: inline-block;
+            margin-left: 10px;
         }
 
         .loading {
@@ -176,7 +202,12 @@
             margin: 10px 0;
         }
 
-        .hidden {
+        .editing-notice {
+            background: #fff3cd;
+            color: #856404;
+            padding: 10px;
+            border-radius: 5px;
+            margin: 10px 0;
             display: none;
         }
 
@@ -199,57 +230,66 @@
 <body>
     <div class="container">
         <div class="header">
-            <h1>Vehicle Logbook</h1>
+            <h1>Kjørebok</h1>
         </div>
         
         <div class="vehicle-info">
-            <strong>Toyota Hilux 2010</strong> | Plate: PP87332 | Forest People
+            <strong>Toyota Hilux 2010</strong> | Reg.nr: PP87332 | Forest People
         </div>
 
         <!-- Login Screen -->
         <div id="loginScreen" class="login-screen">
-            <h2>Enter Passcode</h2>
+            <h2>Skriv inn kode</h2>
             <input type="password" id="passcodeInput" class="passcode-input" maxlength="4" placeholder="****">
             <br>
-            <button class="btn" onclick="login()">Login</button>
+            <button class="btn" onclick="login()">Logg inn</button>
             <div id="loginError" style="color: red; margin-top: 10px; display: none;">
-                Invalid passcode. Please try again.
+                Feil kode. Prøv igjen.
             </div>
         </div>
 
         <!-- Main Content -->
         <div id="mainContent" class="main-content">
             <div class="stats">
-                <h3>Year Summary</h3>
+                <h3>Årsoversikt</h3>
                 <div id="yearStats">
-                    <p>Total Trips: <span id="totalTrips">0</span></p>
-                    <p>Total Distance: <span id="totalDistance">0</span> km</p>
+                    <p>Turer totalt: <span id="totalTrips">0</span></p>
+                    <p>Kilometer totalt: <span id="totalDistance">0</span> km</p>
                 </div>
-                <button class="btn btn-success" onclick="exportToPDF()">Export PDF for Accounting</button>
-                <button class="btn btn-danger" onclick="logout()">Logout</button>
+                <div class="year-selector">
+                    <label for="exportYear"><strong>Velg år for PDF-eksport:</strong></label>
+                    <input type="number" id="exportYear" min="2020" max="2030">
+                </div>
+                <button class="btn btn-success" onclick="exportToPDF()">Eksporter PDF til regnskap</button>
+                <button class="btn btn-danger" onclick="logout()">Logg ut</button>
             </div>
 
             <div id="loadingMessage" class="loading">
-                Connecting to database...
+                Kobler til databasen...
             </div>
 
             <div id="errorMessage" class="error" style="display: none;">
-                Error connecting to database. Please check your internet connection.
+                Feil ved tilkobling til database. Sjekk internettforbindelsen.
             </div>
 
             <div id="appContent" style="display: none;">
-                <h3>Add New Trip</h3>
+                <div id="editingNotice" class="editing-notice">
+                    <strong>Redigerer tur:</strong> Endre verdiene og klikk "Lagre endringer" for å oppdatere.
+                    <button onclick="cancelEdit()" style="float: right; background: none; border: none; color: #856404; cursor: pointer;">✕ Avbryt</button>
+                </div>
+
+                <h3>Legg til ny tur</h3>
                 <form id="tripForm">
                     <div class="form-row">
                         <div class="form-col">
                             <div class="form-group">
-                                <label for="startDate">Start Date:</label>
-                                <input type="datetime-local" id="startDate" required>
+                                <label for="startDate">Startdato:</label>
+                                <input type="date" id="startDate" required>
                             </div>
                         </div>
                         <div class="form-col">
                             <div class="form-group">
-                                <label for="startKm">Kilometer at Start:</label>
+                                <label for="startKm">Kilometer start:</label>
                                 <input type="number" id="startKm" required>
                             </div>
                         </div>
@@ -258,13 +298,13 @@
                     <div class="form-row">
                         <div class="form-col">
                             <div class="form-group">
-                                <label for="startLocation">Start Location:</label>
+                                <label for="startLocation">Startsted:</label>
                                 <input type="text" id="startLocation" required>
                             </div>
                         </div>
                         <div class="form-col">
                             <div class="form-group">
-                                <label for="purpose">Purpose of Trip:</label>
+                                <label for="purpose">Formål:</label>
                                 <input type="text" id="purpose" required>
                             </div>
                         </div>
@@ -273,14 +313,14 @@
                     <div class="form-row">
                         <div class="form-col">
                             <div class="form-group">
-                                <label for="stopLocation">Stop Location:</label>
+                                <label for="stopLocation">Sluttsted:</label>
                                 <input type="text" id="stopLocation" required>
                             </div>
                         </div>
                         <div class="form-col">
                             <div class="form-group">
-                                <label for="stopDate">Stop Date:</label>
-                                <input type="datetime-local" id="stopDate" required>
+                                <label for="stopDate">Sluttdato:</label>
+                                <input type="date" id="stopDate" required>
                             </div>
                         </div>
                     </div>
@@ -288,15 +328,15 @@
                     <div class="form-row">
                         <div class="form-col">
                             <div class="form-group">
-                                <label for="stopKm">Kilometer at Stop:</label>
+                                <label for="stopKm">Kilometer slutt:</label>
                                 <input type="number" id="stopKm" required>
                             </div>
                         </div>
                         <div class="form-col">
                             <div class="form-group">
-                                <label for="initials">Initials:</label>
+                                <label for="initials">Initialer:</label>
                                 <select id="initials" required>
-                                    <option value="">Select...</option>
+                                    <option value="">Velg...</option>
                                     <option value="PJI">PJI</option>
                                     <option value="LMK">LMK</option>
                                 </select>
@@ -304,23 +344,23 @@
                         </div>
                     </div>
 
-                    <button type="submit" class="btn btn-success">Add Trip</button>
+                    <button type="submit" class="btn btn-success" id="submitBtn">Legg til tur</button>
                 </form>
 
-                <h3>Trip Records</h3>
+                <h3>Registrerte turer (eldste først)</h3>
                 <table class="records-table">
                     <thead>
                         <tr>
-                            <th>Start Date</th>
-                            <th>Start Km</th>
-                            <th>Start Location</th>
-                            <th>Purpose</th>
-                            <th>Stop Location</th>
-                            <th>Stop Date</th>
-                            <th>Stop Km</th>
-                            <th>Distance</th>
-                            <th>Initials</th>
-                            <th>Action</th>
+                            <th>Startdato</th>
+                            <th>Km start</th>
+                            <th>Startsted</th>
+                            <th>Formål</th>
+                            <th>Sluttsted</th>
+                            <th>Sluttdato</th>
+                            <th>Km slutt</th>
+                            <th>Kjørt km</th>
+                            <th>Initialer</th>
+                            <th>Handlinger</th>
                         </tr>
                     </thead>
                     <tbody id="recordsTableBody">
@@ -338,6 +378,7 @@
             getFirestore, 
             collection, 
             addDoc, 
+            updateDoc,
             deleteDoc, 
             doc, 
             onSnapshot,
@@ -345,29 +386,32 @@
             query
         } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js';
 
-        // TODO: Replace with your Firebase config
+        // Firebase-konfigurasjon
         const firebaseConfig = {
-  apiKey: "AIzaSyBY-b720I4Kw_J9RilSXgml66BN05vK3IA",
-  authDomain: "vehicle-logbook-ff7c9.firebaseapp.com",
-  projectId: "vehicle-logbook-ff7c9",
-  storageBucket: "vehicle-logbook-ff7c9.firebasestorage.app",
-  messagingSenderId: "693791735958",
-  appId: "1:693791735958:web:0b3f780ef71702e8d882b7"
-};
+            apiKey: "AIzaSyBY-b720I4Kw_J9RilSXgml66BN05vK3IA",
+            authDomain: "vehicle-logbook-ff7c9.firebaseapp.com",
+            projectId: "vehicle-logbook-ff7c9",
+            storageBucket: "vehicle-logbook-ff7c9.firebasestorage.app",
+            messagingSenderId: "693791735958",
+            appId: "1:693791735958:web:0b3f780ef71702e8d882b7"
+        };
 
         // Initialize Firebase
         const app = initializeApp(firebaseConfig);
         const db = getFirestore(app);
-        const tripsCollection = collection(db, 'trips');
+        const tripsCollection = collection(db, 'turer');
 
         // Global variables
         const PASSCODE = '9520';
         let trips = [];
+        let editingId = null;
 
         // Make functions globally available
         window.login = login;
         window.logout = logout;
         window.deleteTrip = deleteTrip;
+        window.editTrip = editTrip;
+        window.cancelEdit = cancelEdit;
         window.exportToPDF = exportToPDF;
 
         function login() {
@@ -375,7 +419,7 @@
             if (enteredCode === PASSCODE) {
                 document.getElementById('loginScreen').style.display = 'none';
                 document.getElementById('mainContent').style.display = 'block';
-                initLogbookApp(); // FIXED: renamed from initializeApp
+                initLogbookApp();
             } else {
                 document.getElementById('loginError').style.display = 'block';
                 document.getElementById('passcodeInput').value = '';
@@ -387,17 +431,26 @@
             document.getElementById('mainContent').style.display = 'none';
             document.getElementById('passcodeInput').value = '';
             document.getElementById('loginError').style.display = 'none';
+            cancelEdit();
         }
 
-        function initLogbookApp() { // FIXED: renamed from initializeApp
+        function initLogbookApp() {
+            // Set current year as default
+            document.getElementById('exportYear').value = new Date().getFullYear();
+            
             // Show loading message
             document.getElementById('loadingMessage').style.display = 'block';
             document.getElementById('errorMessage').style.display = 'none';
             document.getElementById('appContent').style.display = 'none';
 
             try {
-                // Set up real-time listener for trips
-                const q = query(tripsCollection, orderBy('startDate', 'desc'));
+                // Set up real-time listener for trips - SORTERT ELDSTE FØRST
+                const q = query(
+                    tripsCollection, 
+                    orderBy('startDate', 'asc'),    // Eldste først
+                    orderBy('startKm', 'asc')       // Hvis samme dato, sorter etter km
+                );
+                
                 onSnapshot(q, (snapshot) => {
                     trips = [];
                     snapshot.forEach((doc) => {
@@ -443,31 +496,71 @@
 
             // Validate that stop km is greater than start km
             if (trip.stopKm <= trip.startKm) {
-                alert('Stop kilometer must be greater than start kilometer');
+                alert('Kilometer slutt må være større enn kilometer start');
                 return;
             }
 
             try {
-                await addDoc(tripsCollection, trip);
+                if (editingId) {
+                    // Update existing trip
+                    await updateDoc(doc(db, 'turer', editingId), trip);
+                    alert('Tur oppdatert!');
+                    cancelEdit();
+                } else {
+                    // Add new trip
+                    await addDoc(tripsCollection, trip);
+                    alert('Tur lagt til!');
+                }
                 
                 // Clear form
                 document.getElementById('tripForm').reset();
                 
-                alert('Trip added successfully!');
             } catch (error) {
-                console.error('Error adding trip:', error);
-                alert('Error adding trip. Please try again.');
+                console.error('Error saving trip:', error);
+                alert('Feil ved lagring. Prøv igjen.');
             }
         }
 
+        function editTrip(id) {
+            const trip = trips.find(t => t.id === id);
+            if (!trip) return;
+
+            // Fill form with trip data
+            document.getElementById('startDate').value = trip.startDate;
+            document.getElementById('startKm').value = trip.startKm;
+            document.getElementById('startLocation').value = trip.startLocation;
+            document.getElementById('purpose').value = trip.purpose;
+            document.getElementById('stopLocation').value = trip.stopLocation;
+            document.getElementById('stopDate').value = trip.stopDate;
+            document.getElementById('stopKm').value = trip.stopKm;
+            document.getElementById('initials').value = trip.initials;
+
+            // Set editing mode
+            editingId = id;
+            document.getElementById('editingNotice').style.display = 'block';
+            document.getElementById('submitBtn').textContent = 'Lagre endringer';
+            document.getElementById('submitBtn').className = 'btn btn-edit';
+
+            // Scroll to form
+            document.getElementById('tripForm').scrollIntoView({ behavior: 'smooth' });
+        }
+
+        function cancelEdit() {
+            editingId = null;
+            document.getElementById('editingNotice').style.display = 'none';
+            document.getElementById('submitBtn').textContent = 'Legg til tur';
+            document.getElementById('submitBtn').className = 'btn btn-success';
+            document.getElementById('tripForm').reset();
+        }
+
         async function deleteTrip(id) {
-            if (confirm('Are you sure you want to delete this trip?')) {
+            if (confirm('Er du sikker på at du vil slette denne turen?')) {
                 try {
-                    await deleteDoc(doc(db, 'trips', id));
-                    alert('Trip deleted successfully!');
+                    await deleteDoc(doc(db, 'turer', id));
+                    alert('Tur slettet!');
                 } catch (error) {
                     console.error('Error deleting trip:', error);
-                    alert('Error deleting trip. Please try again.');
+                    alert('Feil ved sletting. Prøv igjen.');
                 }
             }
         }
@@ -476,20 +569,24 @@
             const tbody = document.getElementById('recordsTableBody');
             tbody.innerHTML = '';
 
+            // Turene er allerede sortert fra Firestore-spørringen
             trips.forEach(trip => {
                 const distance = trip.stopKm - trip.startKm;
                 const row = tbody.insertRow();
                 row.innerHTML = `
-                    <td>${formatDateTime(trip.startDate)}</td>
+                    <td>${formatDate(trip.startDate)}</td>
                     <td>${trip.startKm}</td>
                     <td>${trip.startLocation}</td>
                     <td>${trip.purpose}</td>
                     <td>${trip.stopLocation}</td>
-                    <td>${formatDateTime(trip.stopDate)}</td>
+                    <td>${formatDate(trip.stopDate)}</td>
                     <td>${trip.stopKm}</td>
                     <td>${distance}</td>
                     <td>${trip.initials}</td>
-                    <td><button class="delete-btn" onclick="deleteTrip('${trip.id}')">Delete</button></td>
+                    <td>
+                        <button class="action-btn edit-btn" onclick="editTrip('${trip.id}')">Rediger</button>
+                        <button class="action-btn delete-btn" onclick="deleteTrip('${trip.id}')">Slett</button>
+                    </td>
                 `;
             });
         }
@@ -502,17 +599,41 @@
             document.getElementById('totalDistance').textContent = totalDistance;
         }
 
-        function formatDateTime(dateTimeString) {
-            const date = new Date(dateTimeString);
-            return date.toLocaleString();
+        function formatDate(dateString) {
+            const date = new Date(dateString);
+            return date.toLocaleDateString('no-NO');
         }
 
         function exportToPDF() {
-            const currentYear = new Date().getFullYear();
+            const selectedYear = parseInt(document.getElementById('exportYear').value);
+            if (!selectedYear) {
+                alert('Velg et år for eksport');
+                return;
+            }
+
+            // Filter trips by selected year
+            const yearTrips = trips.filter(trip => {
+                const tripYear = new Date(trip.startDate).getFullYear();
+                return tripYear === selectedYear;
+            });
+
+            if (yearTrips.length === 0) {
+                alert(`Ingen turer funnet for år ${selectedYear}`);
+                return;
+            }
+
+            // Sort year trips chronologically (eldste først) - samme som hovedlisten
+            yearTrips.sort((a, b) => {
+                if (a.startDate === b.startDate) {
+                    return a.startKm - b.startKm; // Hvis samme dato, sorter etter km
+                }
+                return a.startDate.localeCompare(b.startDate); // Eldste først
+            });
+
             let htmlContent = `
                 <html>
                 <head>
-                    <title>Vehicle Logbook ${currentYear} - Forest People</title>
+                    <title>Kjørebok ${selectedYear} - Forest People</title>
                     <style>
                         body { font-family: Arial, sans-serif; margin: 20px; }
                         .header { text-align: center; margin-bottom: 30px; }
@@ -525,41 +646,43 @@
                 </head>
                 <body>
                     <div class="header">
-                        <h1>Vehicle Logbook ${currentYear}</h1>
+                        <h1>Kjørebok ${selectedYear}</h1>
                         <h2>Forest People</h2>
                     </div>
                     <div class="vehicle-info">
-                        <strong>Vehicle:</strong> Toyota Hilux 2010<br>
-                        <strong>Plate Number:</strong> PP87332<br>
-                        <strong>Business:</strong> Forest People
+                        <strong>Kjøretøy:</strong> Toyota Hilux 2010<br>
+                        <strong>Reg.nr:</strong> PP87332<br>
+                        <strong>Bedrift:</strong> Forest People
                     </div>
                     <table>
                         <thead>
                             <tr>
-                                <th>Start Date</th>
-                                <th>Start Km</th>
-                                <th>Start Location</th>
-                                <th>Purpose</th>
-                                <th>Stop Location</th>
-                                <th>Stop Date</th>
-                                <th>Stop Km</th>
-                                <th>Distance</th>
-                                <th>Initials</th>
+                                <th>Startdato</th>
+                                <th>Km start</th>
+                                <th>Startsted</th>
+                                <th>Formål</th>
+                                <th>Sluttsted</th>
+                                <th>Sluttdato</th>
+                                <th>Km slutt</th>
+                                <th>Kjørt km</th>
+                                <th>Initialer</th>
                             </tr>
                         </thead>
                         <tbody>
             `;
 
-            trips.forEach(trip => {
+            let totalDistance = 0;
+            yearTrips.forEach(trip => {
                 const distance = trip.stopKm - trip.startKm;
+                totalDistance += distance;
                 htmlContent += `
                     <tr>
-                        <td>${formatDateTime(trip.startDate)}</td>
+                        <td>${formatDate(trip.startDate)}</td>
                         <td>${trip.startKm}</td>
                         <td>${trip.startLocation}</td>
                         <td>${trip.purpose}</td>
                         <td>${trip.stopLocation}</td>
-                        <td>${formatDateTime(trip.stopDate)}</td>
+                        <td>${formatDate(trip.stopDate)}</td>
                         <td>${trip.stopKm}</td>
                         <td>${distance}</td>
                         <td>${trip.initials}</td>
@@ -567,17 +690,14 @@
                 `;
             });
 
-            const totalTrips = trips.length;
-            const totalDistance = trips.reduce((sum, trip) => sum + (trip.stopKm - trip.startKm), 0);
-
             htmlContent += `
                         </tbody>
                     </table>
                     <div class="summary">
-                        <h3>Summary</h3>
-                        <p><strong>Total Trips:</strong> ${totalTrips}</p>
-                        <p><strong>Total Distance:</strong> ${totalDistance} km</p>
-                        <p><strong>Generated on:</strong> ${new Date().toLocaleString()}</p>
+                        <h3>Sammendrag ${selectedYear}</h3>
+                        <p><strong>Antall turer:</strong> ${yearTrips.length}</p>
+                        <p><strong>Total kjørt:</strong> ${totalDistance} km</p>
+                        <p><strong>Generert:</strong> ${new Date().toLocaleDateString('no-NO')} ${new Date().toLocaleTimeString('no-NO')}</p>
                     </div>
                 </body>
                 </html>
