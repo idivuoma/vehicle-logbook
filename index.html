@@ -45,15 +45,18 @@
             text-align: center;
         }
 
-        .passcode-input {
-            font-size: 24px;
-            padding: 15px;
+        .login-form {
+            max-width: 300px;
+            margin: 0 auto;
+        }
+
+        .form-input {
+            width: 100%;
+            padding: 12px;
+            margin: 10px 0;
             border: 2px solid #ddd;
             border-radius: 5px;
-            text-align: center;
-            width: 200px;
-            margin: 20px auto;
-            display: block;
+            font-size: 16px;
         }
 
         .btn {
@@ -65,10 +68,16 @@
             cursor: pointer;
             font-size: 16px;
             margin: 10px 5px;
+            width: 100%;
         }
 
         .btn:hover {
             background: #2980b9;
+        }
+
+        .btn:disabled {
+            background: #bdc3c7;
+            cursor: not-allowed;
         }
 
         .btn-success {
@@ -104,6 +113,15 @@
 
         .btn-warning:hover {
             background: #e67e22;
+        }
+
+        .btn-secondary {
+            background: #6c757d;
+            color: white;
+        }
+
+        .btn-secondary:hover {
+            background: #5a6268;
         }
 
         .main-content {
@@ -189,6 +207,15 @@
             margin: 20px 0;
         }
 
+        .user-info {
+            background: #d4edda;
+            color: #155724;
+            padding: 10px;
+            border-radius: 5px;
+            margin: 10px 0;
+            border-left: 4px solid #28a745;
+        }
+
         .year-selector {
             margin: 10px 0;
         }
@@ -269,6 +296,19 @@
             font-size: 13px;
         }
 
+        .toggle-link {
+            color: #3498db;
+            cursor: pointer;
+            text-decoration: underline;
+            font-size: 14px;
+            margin-top: 15px;
+            display: inline-block;
+        }
+
+        .toggle-link:hover {
+            color: #2980b9;
+        }
+
         @media (max-width: 600px) {
             .form-row {
                 flex-direction: column;
@@ -281,6 +321,11 @@
             .records-table th,
             .records-table td {
                 padding: 4px;
+            }
+
+            .btn {
+                width: 100%;
+                margin: 5px 0;
             }
         }
     </style>
@@ -297,17 +342,59 @@
 
         <!-- Login Screen -->
         <div id="loginScreen" class="login-screen">
-            <h2>Skriv inn kode</h2>
-            <input type="password" id="passcodeInput" class="passcode-input" maxlength="4" placeholder="****">
-            <br>
-            <button class="btn" onclick="login()">Logg inn</button>
-            <div id="loginError" style="color: red; margin-top: 10px; display: none;">
-                Feil kode. Prøv igjen.
+            <div id="loginForm">
+                <h2>Logg inn</h2>
+                <div class="login-form">
+                    <input type="email" id="loginEmail" class="form-input" placeholder="E-post" required>
+                    <input type="password" id="loginPassword" class="form-input" placeholder="Passord" required>
+                    <button class="btn" onclick="loginUser()" id="loginBtn">Logg inn</button>
+                    <div class="toggle-link" onclick="toggleToRegister()">
+                        Ny bruker? Registrer deg her
+                    </div>
+                </div>
+            </div>
+
+            <div id="registerForm" style="display: none;">
+                <h2>Registrer ny bruker</h2>
+                <div class="login-form">
+                    <input type="email" id="registerEmail" class="form-input" placeholder="E-post" required>
+                    <input type="password" id="registerPassword" class="form-input" placeholder="Passord (min 6 tegn)" required>
+                    <input type="text" id="registerName" class="form-input" placeholder="Navn (PJI eller LMK)" required>
+                    <button class="btn btn-success" onclick="registerUser()" id="registerBtn">Registrer</button>
+                    <div class="toggle-link" onclick="toggleToLogin()">
+                        Har allerede konto? Logg inn her
+                    </div>
+                </div>
+            </div>
+
+            <div id="authError" class="error" style="display: none;">
+                <div id="authErrorMessage"></div>
+            </div>
+
+            <div id="authSuccess" class="success" style="display: none;">
+                <div id="authSuccessMessage"></div>
+            </div>
+
+            <div class="info" style="margin-top: 30px;">
+                <strong>🔒 Sikker innlogging</strong>
+                <p>Denne appen bruker Firebase Authentication for å beskytte regnskapsdataene. 
+                Du trenger bare å logge inn én gang per enhet.</p>
+                <p><strong>Foreslåtte kontoer:</strong><br>
+                • PJI: <code>pji@forestpeople.no</code><br>
+                • LMK: <code>lmk@forestpeople.no</code></p>
             </div>
         </div>
 
         <!-- Main Content -->
         <div id="mainContent" class="main-content">
+            <div class="user-info">
+                <strong>👤 Innlogget som:</strong> <span id="currentUserEmail"></span>
+                <button class="btn btn-secondary" onclick="logoutUser()" style="float: right; width: auto; padding: 5px 10px; font-size: 12px;">
+                    Logg ut
+                </button>
+                <div style="clear: both;"></div>
+            </div>
+
             <div class="stats">
                 <h3>Årsoversikt</h3>
                 <div id="yearStats">
@@ -319,7 +406,6 @@
                     <input type="number" id="exportYear" min="2020" max="2030">
                 </div>
                 <button class="btn btn-success" onclick="exportToPDF()">Eksporter PDF til regnskap</button>
-                <button class="btn btn-danger" onclick="logout()">Logg ut</button>
             </div>
 
             <div id="loadingMessage" class="loading">
@@ -345,8 +431,8 @@
 
             <div id="dataSafetyNotice" class="data-safety-notice" style="display: none;">
                 <strong>🔒 Datasikkerhet</strong>
-                <p>Alle turer lagres sikkert i Google Firestore. Data går aldri tapt ved opprettelse av indekser eller andre database-operasjoner. 
-                For ekstra sikkerhet, eksporter til PDF regelmessig.</p>
+                <p>Alle turer lagres sikkert i Google Firestore med Firebase Authentication. 
+                Kun innloggede brukere kan lese og endre data. For ekstra sikkerhet, eksporter til PDF regelmessig.</p>
             </div>
 
             <div id="appContent" style="display: none;">
@@ -466,6 +552,14 @@
             orderBy,
             query
         } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js';
+        import {
+            getAuth,
+            createUserWithEmailAndPassword,
+            signInWithEmailAndPassword,
+            signOut,
+            onAuthStateChanged,
+            updateProfile
+        } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js';
 
         // Firebase-konfigurasjon
         const firebaseConfig = {
@@ -478,11 +572,12 @@
         };
 
         // Initialize Firebase
-        let app, db, tripsCollection;
+        let app, db, auth, tripsCollection;
         
         try {
             app = initializeApp(firebaseConfig);
             db = getFirestore(app);
+            auth = getAuth(app);
             tripsCollection = collection(db, 'turer');
             console.log('✅ Firebase initialisert OK');
         } catch (error) {
@@ -491,18 +586,39 @@
         }
 
         // Global variables
-        const PASSCODE = '9520';
         let trips = [];
         let editingId = null;
-        let isSorted = false; // Track if data is sorted
+        let isSorted = false;
+        let currentUser = null;
 
         // Make functions globally available
-        window.login = login;
-        window.logout = logout;
+        window.loginUser = loginUser;
+        window.registerUser = registerUser;
+        window.logoutUser = logoutUser;
+        window.toggleToRegister = toggleToRegister;
+        window.toggleToLogin = toggleToLogin;
         window.deleteTrip = deleteTrip;
         window.editTrip = editTrip;
         window.cancelEdit = cancelEdit;
         window.exportToPDF = exportToPDF;
+
+        // Auth state listener
+        onAuthStateChanged(auth, (user) => {
+            if (user) {
+                console.log('✅ Bruker innlogget:', user.email);
+                currentUser = user;
+                document.getElementById('loginScreen').style.display = 'none';
+                document.getElementById('mainContent').style.display = 'block';
+                document.getElementById('currentUserEmail').textContent = user.email;
+                initLogbookApp();
+            } else {
+                console.log('❌ Ingen bruker innlogget');
+                currentUser = null;
+                document.getElementById('loginScreen').style.display = 'block';
+                document.getElementById('mainContent').style.display = 'none';
+                resetAuthForms();
+            }
+        });
 
         function showError(message) {
             document.getElementById('loadingMessage').style.display = 'none';
@@ -511,35 +627,155 @@
             console.error('🔥 Feil:', message);
         }
 
+        function showAuthError(message) {
+            document.getElementById('authError').style.display = 'block';
+            document.getElementById('authSuccess').style.display = 'none';
+            document.getElementById('authErrorMessage').textContent = message;
+        }
+
+        function showAuthSuccess(message) {
+            document.getElementById('authSuccess').style.display = 'block';
+            document.getElementById('authError').style.display = 'none';
+            document.getElementById('authSuccessMessage').textContent = message;
+        }
+
+        function hideAuthMessages() {
+            document.getElementById('authError').style.display = 'none';
+            document.getElementById('authSuccess').style.display = 'none';
+        }
+
+        function resetAuthForms() {
+            document.getElementById('loginEmail').value = '';
+            document.getElementById('loginPassword').value = '';
+            document.getElementById('registerEmail').value = '';
+            document.getElementById('registerPassword').value = '';
+            document.getElementById('registerName').value = '';
+            document.getElementById('loginBtn').disabled = false;
+            document.getElementById('registerBtn').disabled = false;
+            hideAuthMessages();
+        }
+
+        function toggleToRegister() {
+            document.getElementById('loginForm').style.display = 'none';
+            document.getElementById('registerForm').style.display = 'block';
+            hideAuthMessages();
+        }
+
+        function toggleToLogin() {
+            document.getElementById('registerForm').style.display = 'none';
+            document.getElementById('loginForm').style.display = 'block';
+            hideAuthMessages();
+        }
+
+        async function loginUser() {
+            const email = document.getElementById('loginEmail').value.trim();
+            const password = document.getElementById('loginPassword').value;
+
+            if (!email || !password) {
+                showAuthError('Vennligst fyll inn både e-post og passord');
+                return;
+            }
+
+            document.getElementById('loginBtn').disabled = true;
+            document.getElementById('loginBtn').textContent = 'Logger inn...';
+
+            try {
+                await signInWithEmailAndPassword(auth, email, password);
+                showAuthSuccess('Innlogging vellykket!');
+            } catch (error) {
+                console.error('Login error:', error);
+                let errorMessage = 'Innlogging feilet';
+                
+                switch (error.code) {
+                    case 'auth/user-not-found':
+                        errorMessage = 'Ingen bruker funnet med denne e-posten';
+                        break;
+                    case 'auth/wrong-password':
+                        errorMessage = 'Feil passord';
+                        break;
+                    case 'auth/invalid-email':
+                        errorMessage = 'Ugyldig e-postadresse';
+                        break;
+                    case 'auth/too-many-requests':
+                        errorMessage = 'For mange forsøk. Prøv igjen senere';
+                        break;
+                    default:
+                        errorMessage = error.message;
+                }
+                
+                showAuthError(errorMessage);
+                document.getElementById('loginBtn').disabled = false;
+                document.getElementById('loginBtn').textContent = 'Logg inn';
+            }
+        }
+
+        async function registerUser() {
+            const email = document.getElementById('registerEmail').value.trim();
+            const password = document.getElementById('registerPassword').value;
+            const name = document.getElementById('registerName').value.trim();
+
+            if (!email || !password || !name) {
+                showAuthError('Vennligst fyll inn alle feltene');
+                return;
+            }
+
+            if (password.length < 6) {
+                showAuthError('Passordet må være minst 6 tegn');
+                return;
+            }
+
+            if (!['PJI', 'LMK'].includes(name.toUpperCase())) {
+                showAuthError('Navn må være enten PJI eller LMK');
+                return;
+            }
+
+            document.getElementById('registerBtn').disabled = true;
+            document.getElementById('registerBtn').textContent = 'Registrerer...';
+
+            try {
+                const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+                await updateProfile(userCredential.user, { displayName: name.toUpperCase() });
+                showAuthSuccess('Bruker opprettet! Logger inn...');
+            } catch (error) {
+                console.error('Register error:', error);
+                let errorMessage = 'Registrering feilet';
+                
+                switch (error.code) {
+                    case 'auth/email-already-in-use':
+                        errorMessage = 'E-posten er allerede i bruk';
+                        break;
+                    case 'auth/invalid-email':
+                        errorMessage = 'Ugyldig e-postadresse';
+                        break;
+                    case 'auth/weak-password':
+                        errorMessage = 'Passordet er for svakt';
+                        break;
+                    default:
+                        errorMessage = error.message;
+                }
+                
+                showAuthError(errorMessage);
+                document.getElementById('registerBtn').disabled = false;
+                document.getElementById('registerBtn').textContent = 'Registrer';
+            }
+        }
+
+        async function logoutUser() {
+            try {
+                await signOut(auth);
+                console.log('✅ Bruker logget ut');
+            } catch (error) {
+                console.error('Logout error:', error);
+                alert('Feil ved utlogging: ' + error.message);
+            }
+        }
+
         function showIndexWarning(indexUrl) {
             document.getElementById('loadingMessage').style.display = 'none';
             document.getElementById('indexWarning').style.display = 'block';
             document.getElementById('dataSafetyNotice').style.display = 'block';
             document.getElementById('createIndexLink').href = indexUrl;
             console.log('⚠️ Indeks mangler. URL:', indexUrl);
-        }
-
-        function login() {
-            const enteredCode = document.getElementById('passcodeInput').value;
-            if (enteredCode === PASSCODE) {
-                document.getElementById('loginScreen').style.display = 'none';
-                document.getElementById('mainContent').style.display = 'block';
-                initLogbookApp();
-            } else {
-                document.getElementById('loginError').style.display = 'block';
-                document.getElementById('passcodeInput').value = '';
-            }
-        }
-
-        function logout() {
-            document.getElementById('loginScreen').style.display = 'block';
-            document.getElementById('mainContent').style.display = 'none';
-            document.getElementById('passcodeInput').value = '';
-            document.getElementById('loginError').style.display = 'none';
-            document.getElementById('errorMessage').style.display = 'none';
-            document.getElementById('indexWarning').style.display = 'none';
-            document.getElementById('dataSafetyNotice').style.display = 'none';
-            cancelEdit();
         }
 
         function initLogbookApp() {
@@ -664,6 +900,11 @@
         async function addTrip(e) {
             e.preventDefault();
 
+            if (!currentUser) {
+                alert('Du må være innlogget for å legge til turer');
+                return;
+            }
+
             const trip = {
                 startDate: document.getElementById('startDate').value,
                 startKm: parseInt(document.getElementById('startKm').value),
@@ -673,7 +914,9 @@
                 stopDate: document.getElementById('stopDate').value,
                 stopKm: parseInt(document.getElementById('stopKm').value),
                 initials: document.getElementById('initials').value,
-                createdAt: new Date().toISOString()
+                createdAt: new Date().toISOString(),
+                createdBy: currentUser.email,
+                createdByName: currentUser.displayName || currentUser.email
             };
 
             // Validate that stop km is greater than start km
@@ -685,6 +928,8 @@
             try {
                 if (editingId) {
                     // Update existing trip
+                    trip.updatedAt = new Date().toISOString();
+                    trip.updatedBy = currentUser.email;
                     await updateDoc(doc(db, 'turer', editingId), trip);
                     alert('Tur oppdatert!');
                     cancelEdit();
@@ -736,6 +981,11 @@
         }
 
         async function deleteTrip(id) {
+            if (!currentUser) {
+                alert('Du må være innlogget for å slette turer');
+                return;
+            }
+
             if (confirm('Er du sikker på at du vil slette denne turen?')) {
                 try {
                     await deleteDoc(doc(db, 'turer', id));
@@ -879,8 +1129,9 @@
                         <p><strong>Antall turer:</strong> ${yearTrips.length}</p>
                         <p><strong>Total kjørt:</strong> ${totalDistance} km</p>
                         <p><strong>Generert:</strong> ${new Date().toLocaleDateString('no-NO')} ${new Date().toLocaleTimeString('no-NO')}</p>
+                        <p><strong>Generert av:</strong> ${currentUser ? currentUser.email : 'Ukjent bruker'}</p>
                         <p style="font-size: 10px; color: #666; margin-top: 20px;">
-                            <em>Data sortert ${isSorted ? 'av database' : 'i nettleser'} • Sikret lagret i Google Firestore</em>
+                            <em>Data sortert ${isSorted ? 'av database' : 'i nettleser'} • Sikret med Firebase Authentication</em>
                         </p>
                     </div>
                 </body>
@@ -896,9 +1147,21 @@
         }
 
         // Allow Enter key to login
-        document.getElementById('passcodeInput').addEventListener('keypress', function(e) {
+        document.getElementById('loginEmail').addEventListener('keypress', function(e) {
             if (e.key === 'Enter') {
-                login();
+                loginUser();
+            }
+        });
+
+        document.getElementById('loginPassword').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                loginUser();
+            }
+        });
+
+        document.getElementById('registerPassword').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                registerUser();
             }
         });
     </script>
