@@ -144,6 +144,24 @@
             min-width: 200px;
         }
 
+        .checkbox-group {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-top: 10px;
+        }
+
+        .checkbox-group input[type="checkbox"] {
+            width: auto;
+            margin: 0;
+        }
+
+        .checkbox-group label {
+            margin: 0;
+            font-weight: normal;
+            cursor: pointer;
+        }
+
         label {
             display: block;
             margin-bottom: 5px;
@@ -507,6 +525,18 @@
                         </div>
                     </div>
 
+                    <div class="form-row">
+                        <div class="form-col">
+                            <div class="checkbox-group">
+                                <input type="checkbox" id="roundTrip">
+                                <label for="roundTrip">Tur/retur</label>
+                            </div>
+                        </div>
+                        <div class="form-col">
+                            <!-- Empty column for alignment -->
+                        </div>
+                    </div>
+
                     <button type="submit" class="btn btn-success" id="submitBtn">Legg til tur</button>
                 </form>
 
@@ -525,6 +555,7 @@
                             <th>Sluttsted</th>
                             <th>Sluttdato</th>
                             <th>Km slutt</th>
+                            <th>T/R</th>
                             <th>Kjørt km</th>
                             <th>Initialer</th>
                             <th>Handlinger</th>
@@ -914,6 +945,7 @@
                 stopDate: document.getElementById('stopDate').value,
                 stopKm: parseInt(document.getElementById('stopKm').value),
                 initials: document.getElementById('initials').value,
+                roundTrip: document.getElementById('roundTrip').checked,
                 createdAt: new Date().toISOString(),
                 createdBy: currentUser.email,
                 createdByName: currentUser.displayName || currentUser.email
@@ -961,6 +993,7 @@
             document.getElementById('stopDate').value = trip.stopDate;
             document.getElementById('stopKm').value = trip.stopKm;
             document.getElementById('initials').value = trip.initials;
+            document.getElementById('roundTrip').checked = trip.roundTrip || false;
 
             // Set editing mode
             editingId = id;
@@ -1003,6 +1036,7 @@
 
             trips.forEach(trip => {
                 const distance = trip.stopKm - trip.startKm;
+                const roundTripDisplay = trip.roundTrip ? "✔️" : "-";
                 const row = tbody.insertRow();
                 row.innerHTML = `
                     <td>${formatDate(trip.startDate)}</td>
@@ -1012,6 +1046,7 @@
                     <td>${trip.stopLocation}</td>
                     <td>${formatDate(trip.stopDate)}</td>
                     <td>${trip.stopKm}</td>
+                    <td>${roundTripDisplay}</td>
                     <td>${distance}</td>
                     <td>${trip.initials}</td>
                     <td>
@@ -1095,6 +1130,7 @@
                                 <th>Sluttsted</th>
                                 <th>Sluttdato</th>
                                 <th>Km slutt</th>
+                                <th>T/R</th>
                                 <th>Kjørt km</th>
                                 <th>Initialer</th>
                             </tr>
@@ -1106,6 +1142,7 @@
             yearTrips.forEach(trip => {
                 const distance = trip.stopKm - trip.startKm;
                 totalDistance += distance;
+                const roundTripPDF = trip.roundTrip ? "Ja" : "";
                 htmlContent += `
                     <tr>
                         <td>${formatDate(trip.startDate)}</td>
@@ -1115,6 +1152,7 @@
                         <td>${trip.stopLocation}</td>
                         <td>${formatDate(trip.stopDate)}</td>
                         <td>${trip.stopKm}</td>
+                        <td>${roundTripPDF}</td>
                         <td>${distance}</td>
                         <td>${trip.initials}</td>
                     </tr>
