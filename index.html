@@ -177,6 +177,11 @@
             font-size: 16px;
         }
 
+        .auto-filled {
+            background-color: #e8f5e8;
+            border-color: #28a745;
+        }
+
         .records-table {
             width: 100%;
             border-collapse: collapse;
@@ -312,6 +317,16 @@
             border-radius: 5px;
             margin: 10px 0;
             font-size: 13px;
+        }
+
+        .auto-fill-notice {
+            background: #d4edda;
+            color: #155724;
+            padding: 8px;
+            border-radius: 4px;
+            margin: 5px 0;
+            font-size: 12px;
+            border-left: 3px solid #28a745;
         }
 
         .toggle-link {
@@ -460,6 +475,10 @@
                 </div>
 
                 <h3>Legg til ny tur</h3>
+                <div id="autoFillNotice" class="auto-fill-notice" style="display: none;">
+                    <strong>🚗 Smart utfylling:</strong> Km start er automatisk satt til forrige turs slutt-km (<span id="lastKmValue"></span>). Du kan endre dette om nødvendig.
+                </div>
+                
                 <form id="tripForm">
                     <div class="form-row">
                         <div class="form-col">
@@ -809,6 +828,44 @@
             console.log('⚠️ Indeks mangler. URL:', indexUrl);
         }
 
+        function prefillNextTrip() {
+            if (trips.length > 0) {
+                // Find the trip with the highest stopKm (most recent trip)
+                const lastTrip = trips.reduce((latest, current) => {
+                    return current.stopKm > latest.stopKm ? current : latest;
+                });
+                
+                const startKmField = document.getElementById('startKm');
+                const autoFillNotice = document.getElementById('autoFillNotice');
+                const lastKmValue = document.getElementById('lastKmValue');
+                
+                // Only prefill if not editing and field is empty
+                if (!editingId && (!startKmField.value || startKmField.value === '')) {
+                    startKmField.value = lastTrip.stopKm;
+                    startKmField.classList.add('auto-filled');
+                    
+                    // Show notice
+                    lastKmValue.textContent = lastTrip.stopKm + ' km';
+                    autoFillNotice.style.display = 'block';
+                    
+                    console.log('🚗 Auto-fylte Km start:', lastTrip.stopKm);
+                } else {
+                    autoFillNotice.style.display = 'none';
+                }
+            } else {
+                document.getElementById('autoFillNotice').style.display = 'none';
+            }
+        }
+
+        // Remove auto-fill styling when user starts typing
+        function setupAutoFillHandlers() {
+            const startKmField = document.getElementById('startKm');
+            startKmField.addEventListener('input', function() {
+                this.classList.remove('auto-filled');
+                document.getElementById('autoFillNotice').style.display = 'none';
+            });
+        }
+
         function initLogbookApp() {
             // Set current year as default
             document.getElementById('exportYear').value = new Date().getFullYear();
@@ -853,6 +910,7 @@
                     isSorted = true;
                     loadTrips();
                     updateStats();
+                    prefillNextTrip();
                     
                     // Hide loading, show content
                     document.getElementById('loadingMessage').style.display = 'none';
@@ -876,8 +934,9 @@
                     }
                 });
 
-                // Set up form submission
+                // Set up form submission and auto-fill handlers
                 document.getElementById('tripForm').addEventListener('submit', addTrip);
+                setupAutoFillHandlers();
 
             } catch (error) {
                 console.error('❌ Feil ved sortert spørring:', error);
@@ -911,6 +970,7 @@
                     isSorted = false;
                     loadTrips();
                     updateStats();
+                    prefillNextTrip();
                     
                     // Show content with warning
                     document.getElementById('appContent').style.display = 'block';
@@ -974,6 +1034,13 @@
                 // Clear form
                 document.getElementById('tripForm').reset();
                 
+                // Prefill next trip automatically after adding
+                if (!editingId) {
+                    setTimeout(() => {
+                        prefillNextTrip();
+                    }, 500); // Small delay to ensure trips array is updated
+                }
+                
             } catch (error) {
                 console.error('Error saving trip:', error);
                 alert('Feil ved lagring: ' + error.message);
@@ -995,6 +1062,10 @@
             document.getElementById('initials').value = trip.initials;
             document.getElementById('roundTrip').checked = trip.roundTrip || false;
 
+            // Remove auto-fill styling and hide notice when editing
+            document.getElementById('startKm').classList.remove('auto-filled');
+            document.getElementById('autoFillNotice').style.display = 'none';
+
             // Set editing mode
             editingId = id;
             document.getElementById('editingNotice').style.display = 'block';
@@ -1011,6 +1082,9 @@
             document.getElementById('submitBtn').textContent = 'Legg til tur';
             document.getElementById('submitBtn').className = 'btn btn-success';
             document.getElementById('tripForm').reset();
+            
+            // Prefill after canceling edit
+            prefillNextTrip();
         }
 
         async function deleteTrip(id) {
